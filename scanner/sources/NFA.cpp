@@ -72,6 +72,56 @@ namespace Compyler{
         mTransitionFunctions.emplace_back(NFAMapping{state, mStartState, mapping});
         mStartState = state;
     }
+    bool isInWorkingList(std::vector<ulong> states
+                        , std::vector< std::vector<ulong> > WorkingList)
+    {
+        return std::find(WorkingList.begin(), WorkingList.end(), states) != std::end(WorkingList);
+    }
+    std::vector<DFAMapping> NFA::constructDFA(NFA& nfa)
+    {
+        std::vector<DFAMapping> dfa;
+        std::vector<char> symbols = {'a', 'b', 'c'};
+        std::vector<std::vector<ulong> > WorkingSet;
+        std::vector<ulong> nfaStates;
+        nfaStates.push_back(nfa.mStartState);
+        WorkingSet.emplace_back(nfaStates);
+        bool firstSet = true;
+        while (!WorkingSet.empty())
+        {
+            std::vector<ulong> currentStateSet = std::move(WorkingSet[0]);
+            DFANode dfaNode = DFANode{DFAState++, currentStateSet};
+            std::vector<ulong> storageSet = currentStateSet;
+            WorkingSet.pop_back();
+        for (char c : symbols)
+        {
+            for (ulong s : currentStateSet)
+            {
+                std::vector<ulong> stateSet{s};
+                nfa.followEpsilon(c,stateSet);
+                if (!stateSet.empty())
+                    stateSet.erase(stateSet.begin());
+                for (auto i : stateSet)
+                    std::cout<<i<<',';
+                std::cout<<'\n';
+                if (!stateSet.empty()
+                    && !isInWorkingList(stateSet, WorkingSet))
+                {
+                    std::cout<<"Pushed";
+                    WorkingSet.emplace_back(stateSet);
+                }
+            }
+            currentStateSet = storageSet;
+        }
+        firstSet = false;
+        }
+    }
+    void removeDuplicates(std::vector<ulong>& states)
+    {
+        std::set<ulong> set(states.begin(), states.end());
+        states.clear();
+        states.resize(set.size());
+        std::copy(set.begin(), set.end(), states.begin());
+    }
     int NFA::findByInitialState(ulong state, bool first)
     {
         for (int i = 0; i < mTransitionFunctions.size(); i++)
@@ -84,29 +134,39 @@ namespace Compyler{
         }
         return -1;
     }
-    void NFA::followEpsilon(char mappingSymb, int index, std::vector<ulong>& States)
+    void NFA::followEpsilon(char mappingSymb, std::vector<ulong>& States, int index)
     {
         ulong currentState = States[index];
         int j = findByInitialState(currentState);
         char currentSymb = mTransitionFunctions[j].mMappingSymbol;
         bool cond = false;
-        if (j != -1 && (currentSymb == '\0' || currentSymb == mappingSymb))
+        if (j != -1 && ((index != 0 && currentSymb == '\0')
+                    || (index == 0 && currentSymb == mappingSymb)) )
         {
             cond = true;
             ulong k = mTransitionFunctions[j].mTargetState;
-            States.push_back(k);
-            followEpsilon(mappingSymb, ++index, States);
+                States.push_back(k);
+                followEpsilon(mappingSymb, States, ++index);
         }
         j = findByInitialState(currentState, false);
         currentSymb = mTransitionFunctions[j].mMappingSymbol;
-         if (j != -1 && (currentSymb == '\0' || currentSymb == mappingSymb))
+        if (j != -1 && ((index != 0 && currentSymb == '\0')
+                    || (index == 0 && currentSymb == mappingSymb)) )
            {
-           cond = true;
-           ulong k = mTransitionFunctions[j].mTargetState;
-           States.push_back(k);
-           followEpsilon(mappingSymb, ++index, States);
+               cond = true;
+               ulong k = mTransitionFunctions[j].mTargetState;
+                   States.push_back(k);
+                   followEpsilon(mappingSymb, States, ++index);
            }
         return;
+    }
+    bool NFA::reachedThroughEpsilon(ulong state, std::vector<ulong>& States)
+    {
+        for (ulong i : States)
+            if (state == i)
+                return true;
+        return false;
+
     }
     std::ostream& operator<<(std::ostream& os, NFA& nfa)
     {
