@@ -15,6 +15,7 @@ namespace Compyler{
                 return nfa2;
             }
         };
+
         Operator<NFA> kleene{'*', 3, [](NFA nfa, NFA nfa2)
             {
                 nfa2.mTransitionFunctions.emplace_back(NFAMapping{nfa2.mHultState, nfa2.mStartState, '\0'});
@@ -25,6 +26,7 @@ namespace Compyler{
             }
             ,true
         };
+
         Operator<NFA> alt{'|', 1, [](NFA nfa1, NFA nfa2)
             {
                 nfa2.pushNewStart();
@@ -38,6 +40,7 @@ namespace Compyler{
                 return nfa2;
             }
         };
+
         std::vector<Operator<NFA> > ops{conc, alt, kleene};
         expSpecs.sOperators = ops;
         expSpecs.sConvertionFunc = [](char c)
@@ -57,6 +60,7 @@ namespace Compyler{
         ExpressionEvaluator mExpressionEvaluator(expSpecs);
         return mExpressionEvaluator.evaluate(regEx);
     }
+
     void NFA::pushNewHult(char mapping)
     {
         ulong state = maxState++;
@@ -64,6 +68,7 @@ namespace Compyler{
         mTransitionFunctions.emplace_back(NFAMapping{mHultState, state, mapping});
         mHultState = state;
     }
+
     void NFA::pushNewStart(char mapping)
     {
 
@@ -72,48 +77,89 @@ namespace Compyler{
         mTransitionFunctions.emplace_back(NFAMapping{state, mStartState, mapping});
         mStartState = state;
     }
+
     bool isInWorkingList(std::vector<ulong> states
                         , std::vector< std::vector<ulong> > WorkingList)
     {
         return std::find(WorkingList.begin(), WorkingList.end(), states) != std::end(WorkingList);
     }
+
+    int isInDFA(std::vector<ulong> states, std::vector<DFAMapping> dfa)
+    {
+        for (int i = 0; i < dfa.size(); i++)
+        {
+            std::vector<ulong> initialStates = dfa[i].mInitialSet.Set;
+            std::vector<ulong> finalStates = dfa[i].mTargetSet.Set;
+            if (states == initialStates)
+            {
+                return dfa[i].mInitialSet.stateNumber;
+            }
+            else if (states == finalStates)
+            {
+                return dfa[i].mTargetSet.stateNumber;
+            }
+        }
+        return -1;
+    }
+
     std::vector<DFAMapping> NFA::constructDFA(NFA& nfa)
     {
         std::vector<DFAMapping> dfa;
+
         std::vector<char> symbols = {'a', 'b', 'c'};
+
         std::vector<std::vector<ulong> > WorkingSet;
-        std::vector<ulong> nfaStates;
-        nfaStates.push_back(nfa.mStartState);
-        WorkingSet.emplace_back(nfaStates);
-        bool firstSet = true;
+        std::vector<ulong> currentCycleNfaStates;
+
+        currentCycleNfaStates.push_back(nfa.mStartState);
+        WorkingSet.emplace_back(currentCycleNfaStates);
+
         while (!WorkingSet.empty())
         {
-            std::vector<ulong> currentStateSet = std::move(WorkingSet[0]);
-            DFANode dfaNode = DFANode{DFAState++, currentStateSet};
-            std::vector<ulong> storageSet = currentStateSet;
+            std::vector<ulong> currentDfaStates = std::move(WorkingSet[0]);
+
+            DFANode dfaNode = DFANode{DFAState, currentDfaStates};
+
+            std::vector<ulong> storageSet = currentDfaStates;
+
             WorkingSet.pop_back();
+
         for (char c : symbols)
         {
-            for (ulong s : currentStateSet)
+            std::vector<ulong> eSets = {};
+
+            for (ulong s : currentDfaStates)
             {
-                std::vector<ulong> stateSet{s};
-                nfa.followEpsilon(c,stateSet);
-                if (!stateSet.empty())
-                    stateSet.erase(stateSet.begin());
-                for (auto i : stateSet)
+                eSets = {s};
+                nfa.followEpsilon(c,eSets);
+                if (!eSets.empty())
+                    eSets.erase(eSets.begin());
+
+                /*Debug*/
+                for (auto i : eSets)
                     std::cout<<i<<',';
                 std::cout<<'\n';
-                if (!stateSet.empty()
-                    && !isInWorkingList(stateSet, WorkingSet))
+                /*End Debug */
+
+                if (!eSets.empty()
+                    && !isInWorkingList(eSets, WorkingSet))
                 {
                     std::cout<<"Pushed";
-                    WorkingSet.emplace_back(stateSet);
+                    WorkingSet.emplace_back(eSets);
+                }
+                if (!eSets.empty())
+                {
+                    int temp = DFAState;
+                    int cond = isInDFA(eSets, dfa);
+                    DFAState = cond * (cond != -1) + (temp + 1) * (cond == -1);
+                    DFANode mapNode{DFAState, eSets};
+                    dfa.emplace_back(DFAMapping{dfaNode, mapNode, c});
                 }
             }
-            currentStateSet = storageSet;
+            currentDfaStates = storageSet;
         }
-        firstSet = false;
         }
+        return dfa;
     }
     void removeDuplicates(std::vector<ulong>& states)
     {
