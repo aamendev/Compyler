@@ -1,3 +1,3 @@
 # Compyler
 
-A C++ Compiler for python.
+A generic C++ Compiler.
