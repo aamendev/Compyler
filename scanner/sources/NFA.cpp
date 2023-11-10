@@ -109,64 +109,69 @@ namespace Compyler{
         std::vector<char> symbols = {'a', 'b', 'c'};
 
         std::vector<std::vector<ulong> > WorkingSet;
+        std::vector<std::vector<ulong> > visitedSets;
+
         std::vector<ulong> currentCycleNfaStates;
 
         currentCycleNfaStates.push_back(nfa.mStartState);
         WorkingSet.emplace_back(currentCycleNfaStates);
+        visitedSets = WorkingSet;
 
         while (!WorkingSet.empty())
         {
-            std::vector<ulong> currentDfaStates = std::move(WorkingSet[0]);
+            std::cout<<"DFA Size: "<<dfa.size()<<'\n';
+            std::cout<<"Num Loop: "<< WorkingSet.size() << '\n';
+            int temp = DFAState;
+
+
+            std::vector<ulong> currentDfaStates = std::move(WorkingSet[WorkingSet.size() - 1]);
 
             DFANode dfaNode = DFANode{DFAState, currentDfaStates};
 
             std::vector<ulong> storageSet = currentDfaStates;
 
             WorkingSet.pop_back();
-
-        for (char c : symbols)
-        {
-            std::vector<ulong> eSets = {};
-
-            for (ulong s : currentDfaStates)
+            for (char c : symbols)
             {
-                eSets = {s};
-                nfa.followEpsilon(c,eSets);
-                if (!eSets.empty())
-                    eSets.erase(eSets.begin());
+                std::vector<ulong> eSets = {};
 
-                /*Debug*/
-                for (auto i : eSets)
-                    std::cout<<i<<',';
-                std::cout<<'\n';
-                /*End Debug */
+                for (ulong s : currentDfaStates)
+                {
+                    eSets = {s};
+                    nfa.followEpsilon(c,eSets);
+                    if (!eSets.empty())
+                        eSets.erase(eSets.begin());
 
-                if (!eSets.empty()
-                    && !isInWorkingList(eSets, WorkingSet))
-                {
-                    std::cout<<"Pushed";
-                    WorkingSet.emplace_back(eSets);
+                    /*Debug*/
+                    for (auto i : eSets)
+                        std::cout<<i<<',';
+                    std::cout<<'\n';
+                    /*End Debug */
+
+                    if (!eSets.empty())
+                    {
+                        /* Log */
+                        std::cout<<DFAState<<'\n';
+                        /* End Log */
+                        if (!isInWorkingList(eSets ,visitedSets))
+                        {
+                            std::cout<<"Pushed";
+                            std::cout<<"\nIIIIIIIIIIIIIN\n";
+                            WorkingSet.emplace_back(eSets);
+                            visitedSets.emplace_back(eSets);
+                        }
+                        int temp2 = DFAState;
+                        int cond = isInDFA(eSets, dfa);
+                        DFAState = cond * (cond != -1) + (temp2 + 1) * (cond == -1);
+                        DFANode mapNode{DFAState, eSets};
+                        dfa.emplace_back(DFAMapping{dfaNode, mapNode, c});
+                    }
                 }
-                if (!eSets.empty())
-                {
-                    int temp = DFAState;
-                    int cond = isInDFA(eSets, dfa);
-                    DFAState = cond * (cond != -1) + (temp + 1) * (cond == -1);
-                    DFANode mapNode{DFAState, eSets};
-                    dfa.emplace_back(DFAMapping{dfaNode, mapNode, c});
-                }
+                currentDfaStates = storageSet;
             }
-            currentDfaStates = storageSet;
-        }
+            DFAState = temp + 1;
         }
         return dfa;
-    }
-    void removeDuplicates(std::vector<ulong>& states)
-    {
-        std::set<ulong> set(states.begin(), states.end());
-        states.clear();
-        states.resize(set.size());
-        std::copy(set.begin(), set.end(), states.begin());
     }
     int NFA::findByInitialState(ulong state, bool first)
     {
@@ -205,14 +210,6 @@ namespace Compyler{
                    followEpsilon(mappingSymb, States, ++index);
            }
         return;
-    }
-    bool NFA::reachedThroughEpsilon(ulong state, std::vector<ulong>& States)
-    {
-        for (ulong i : States)
-            if (state == i)
-                return true;
-        return false;
-
     }
     std::ostream& operator<<(std::ostream& os, NFA& nfa)
     {
